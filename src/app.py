@@ -29,11 +29,14 @@ class MainWindow(wx.Frame):
         file_menu.AppendSeparator()
         file_menu_save_as = file_menu.Append(wx.ID_SAVEAS, "&Save As", "Saves a new file")
         file_menu.AppendSeparator()
+        file_menu_print = file_menu.Append(wx.ID_PRINT, "Print", "Prints the file")
+        file_menu.AppendSeparator()
         file_menu_exit = file_menu.Append(wx.ID_EXIT, "E&xit", "Closes the application.")
         menu_bar.Append(file_menu, "&File")
         self.Bind(wx.EVT_MENU, self.onOpen, file_menu_open)
         self.Bind(wx.EVT_MENU, self.onSave, file_menu_save)
         self.Bind(wx.EVT_MENU, self.onSaveAs, file_menu_save_as)
+        self.Bind(wx.EVT_MENU, self.onPrint, file_menu_print)
         self.Bind(wx.EVT_MENU, self.onExit, file_menu_exit)
     #Creating the textbox and the wrapping
     def createTextBox(self):
@@ -84,12 +87,86 @@ class MainWindow(wx.Frame):
             file.write(self.text_control.GetValue())
         dlg.Destroy()
         self.SetTitle(os.path.basename(self.current_file_path) + "- Text Editor")
-    #For the exit menu item of the file menu which closes the window.
+    #Function that prints the text using a printer
+    def onPrint(self, evt):
+        printer = wx.Printer()
+        print_dlg = wx.PrintDialog(self)
+        if print_dlg.ShowModal() == wx.ID_OK:
+            print_data = print_dlg.GetPrintData()
+            printout = TextPrintout(self.text_control.GetValue())
+            printer.Print(parent=self, printout=printout)
+            printout.Destroy()
+        print_dlg.Destroy()
+    #For the exit menu item of the file menu which closes the window; in addition, the function checks if there have been changes to the file and asks user to save or not saved and also checks if there is text but no file name and will ask user to save or not save.
     def onExit(self, evt):
-        self.Close(True)
-        sys.exit()
+        if self.current_file_path != "":
+            with open(self.current_file_path, 'r') as file:
+                current_contents = file.read()
+            if current_contents != self.text_control.GetValue():
+                dlg = wx.MessageDialog(parent=self, caption="Save Changes", message="Do you want to save changes to " + os.path.basename(self.current_file_path) + "?", style=wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
+                result = dlg.ShowModal()
+                if result == wx.ID_YES:
+                    self.onSave(evt)
+                    self.Close(True)
+                    sys.exit()
+                elif result == wx.ID_NO:
+                    self.Close(True)
+                    sys.exit()
+                else:
+                    dlg.Destroy()
+                    return
+        else:
+            if self.text_control.GetValue():
+                dlg = wx.MessageDialog(parent=self, caption="Save Changes", message="Do you want to save changes to Untitled?", style=wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
+                result = dlg.ShowModal()
+                if result == wx.ID_YES:
+                    self.onSave(evt)
+                    self.Close(True)
+                    sys.exit()
+                elif result == wx.ID_NO:
+                    self.Close(True)
+                    sys.exit()
+                else:
+                    dlg.Destroy()
+                    return
+            else:
+                self.Close(True)
+                sys.exit()
     #Keyboard-based events
-#Creating the window and running the main loop.
+class TextPrintout(wx.Printout):
+    def __init__(self, text):
+        wx.Printout.__init__(self)
+        self.text = text
+        self.page_text = ""
+        self.line = []
+    def OnPreparePrinting(self):
+        dc = self.GetDC()
+        dc.SetFont(self.GetFont())
+        w, h, = dc.GetSize()
+        line_height = dc.getCharHeight()
+        lines_per_page = int(h / line_height)
+        self.lines = self.text.split('\n')
+        self.page_text = '\n'.join[: lines_per_page]
+        return True
+    def hasPages(self, page):
+        return page <= len(self.lines)
+    def OnPrintPage(self, page):
+        dc = self.GetDC()
+        dc.SetFont(self.GetFont())
+        margin_x = 20
+        margin_y = 20
+        _, page_height = dc.GetSize()
+        printing_area_height = page_height - 2 * margin_y
+        line_height = dc.GetCharHeight()
+        lines_per_page = int(printing_area_height / line_height)
+        start_line = (page - 1) * lines_per_page
+        y = margin_y
+        end_line = min(start_line + lines_per_page, len(self.lines))
+        for line in self.lines[start_line:end_line]:
+            dc.DrawText(line, margin_x, y)
+            y += line_height
+        return True
+    #Creating the window and running the main loop.
 app = wx.App(False)
 window = MainWindow(None, "Untitled - Text Editor")
 app.MainLoop()
