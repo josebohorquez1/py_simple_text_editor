@@ -4,8 +4,13 @@ import sys
 #A single tab within the application; also used to create new tabs.
 class Tab(wx.Panel):
     def __init__(self, parent):
+        #Initializing a panel and creating the interface for the panel which will be used for each tab.
         wx.Panel.__init__(self, parent)
-        self.text_control = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_PROCESS_TAB | wx.TE_NOHIDESEL | wx.HSCROLL | wx.VSCROLL)
+        textbox = wx.StaticBox(self, label="Text Editor")
+        self.text_control = wx.TextCtrl(textbox, style=wx.TE_MULTILINE | wx.TE_PROCESS_TAB | wx.TE_NOHIDESEL | wx.HSCROLL | wx.VSCROLL)
+        sizer = wx.StaticBoxSizer(textbox, wx.VERTICAL)
+        sizer.Add(self.text_control, flag=wx.EXPAND | wx.ALL, proportion=1, border=5)
+        self.SetSizer(sizer)
     #Function to get the text control of the tab.
     def getTextControl(self):
         return self.text_control
@@ -17,9 +22,10 @@ class MainWindow(wx.Frame):
         self.window.__init__(parent, title=title, size=(200, 100))
         self.panel = wx.Panel(self.window)
         self.notebook = wx.Notebook(self.panel)
-        #Initializing the main window user interface.
+        #Initializing the main window user interface, and adding a event handler that changes the application title based on the tab title.
         self.current_file_paths = []
         self.initUI()
+        self.notebook.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onTabChange, self.notebook)
         self.window.Show(True)
     #function to initialize the user interface.
     def initUI(self):
@@ -34,6 +40,11 @@ class MainWindow(wx.Frame):
         sizer.Add(self.notebook, 1, wx.EXPAND)
         self.current_file_paths.append("")
         tab.getTextControl().SetFocus()
+    #Function to set the window's title based on the title of the tab.
+    def onTabChange(self, evt):
+        title = self.notebook.GetPageText(self.notebook.GetSelection()) + " - Text Editor"
+        self.window.SetTitle(title=title)
+    #Function to retrieve the text control from the current selected tab
     def getTextControlFromTab(self):
         current_tab_index = self.notebook.GetSelection()
         current_tab = self.notebook.GetPage(current_tab_index)
@@ -45,13 +56,6 @@ class MainWindow(wx.Frame):
         menu_bar = wx.MenuBar()
         FileMenu(self, menu_bar)
         self.window.SetMenuBar(menu_bar)
-    #Creating the textbox and the wrapping
-    def createTextBox(self):
-        textbox = wx.StaticBox(self.window, label="Text Editor")
-        self.text_control = wx.TextCtrl(textbox, style=wx.TE_MULTILINE | wx.TE_PROCESS_TAB | wx.TE_NOHIDESEL | wx.HSCROLL | wx.VSCROLL)
-        sizer = wx.StaticBoxSizer(textbox, wx.VERTICAL)
-        sizer.Add(self.text_control, flag=wx.EXPAND | wx.ALL, proportion=1, border=5)
-        self.window.SetSizer(sizer)
 class FileMenu(wx.Menu, MainWindow):
     def __init__(self, main_window : MainWindow, menu_bar : wx.MenuBar):
         wx.Menu.__init__(self)
@@ -97,7 +101,8 @@ class FileMenu(wx.Menu, MainWindow):
             contents = file.read()
             self.main_window.getTextControlFromTab().SetValue(contents)
         dlg.Destroy()
-        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
+        self.main_window.notebook.SetPageText(self.main_window.notebook.GetSelection(), os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]))
+        self.main_window.onTabChange(evt=evt)
     #Function to save the current file; if file exists, will override the contents with the new contents; if the file does not exist, will create and open the save as dialogue box and change the window title to include the file name.
     def onSave(self, evt):
         if self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]:
@@ -113,7 +118,8 @@ class FileMenu(wx.Menu, MainWindow):
             with open(file_path, 'w') as file:
                 file.write(self.main_window.getTextControlFromTab().GetValue())
             dlg.Destroy()
-            self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
+            self.main_window.notebook.SetPageText(self.main_window.notebook.GetSelection(), os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]))
+        self.main_window.onTabChange(evt=evt)
     #For the save as function which creates a new file or saves the same file with a new different file name, and changes the window title with the new file name.
     def onSaveAs(self, evt):
         wildcard = "Text documents(*.txt)|*.txt|All files(*.*)|*.*"
@@ -125,7 +131,8 @@ class FileMenu(wx.Menu, MainWindow):
         with open(file_path, 'w') as file:
             file.write(self.main_window.getTextControlFromTab().GetValue())
         dlg.Destroy()
-        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
+        self.main_window.notebook.SetPageText(self.main_window.notebook.GetSelection(), os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]))
+        self.main_window.onTabChange(evt=evt)
     #Function that prints the text using a printer
     def onPrint(self, evt):
         printer = wx.Printer()
