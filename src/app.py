@@ -1,21 +1,45 @@
 import wx
 import os
 import sys
+#A single tab within the application; also used to create new tabs.
+class Tab(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+        self.text_control = wx.TextCtrl(self, style=wx.TE_MULTILINE | wx.TE_PROCESS_TAB | wx.TE_NOHIDESEL | wx.HSCROLL | wx.VSCROLL)
+    #Function to get the text control of the tab.
+    def getTextControl(self):
+        return self.text_control
 #The main window class
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         #Initializing the parent class
         self.window = wx.Frame()
         self.window.__init__(parent, title=title, size=(200, 100))
+        self.panel = wx.Panel(self.window)
+        self.notebook = wx.Notebook(self.panel)
         #Initializing the main window user interface.
-        self.current_file_path = ""
+        self.current_file_paths = []
         self.initUI()
         self.window.Show(True)
     #function to initialize the user interface.
     def initUI(self):
         self.createMenuBar()
-        self.createTextBox()
         self.window.CreateStatusBar()
+        self.createTab()
+    #Function to create a new tab.
+    def createTab(self):
+        tab = Tab(self.notebook)
+        self.notebook.AddPage(tab, "Untitled")
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.notebook, 1, wx.EXPAND)
+        self.current_file_paths.append("")
+        tab.getTextControl().SetFocus()
+    def getTextControlFromTab(self):
+        current_tab_index = self.notebook.GetSelection()
+        current_tab = self.notebook.GetPage(current_tab_index)
+        if isinstance(current_tab, Tab):
+            return current_tab.getTextControl()
+        return None
     #Creating the menu bar
     def createMenuBar(self):
         menu_bar = wx.MenuBar()
@@ -33,6 +57,8 @@ class FileMenu(wx.Menu, MainWindow):
         wx.Menu.__init__(self)
         self.menu_bar = menu_bar
         self.main_window = main_window
+        file_menu_new_tab = self.Append(wx.ID_ANY, "New Tab", "Opens a new tab.")
+        self.AppendSeparator()
         file_menu_new_window = self.Append(wx.ID_ANY, "New Window", "Opens a new window.")
         self.AppendSeparator()
         file_menu_open = self.Append(wx.ID_OPEN, "&Open", "Opens a file.")
@@ -45,12 +71,16 @@ class FileMenu(wx.Menu, MainWindow):
         self.AppendSeparator()
         file_menu_exit = self.Append(wx.ID_EXIT, "E&xit", "Closes the application.")
         self.menu_bar.Append(self, "&File")
+        self.main_window.window.Bind(wx.EVT_MENU, self.onNewTab, file_menu_new_tab)
         self.main_window.window.Bind(wx.EVT_MENU, self.onNewWindow, file_menu_new_window)
         self.main_window.window.Bind(wx.EVT_MENU, self.onOpen, file_menu_open)
         self.main_window.window.Bind(wx.EVT_MENU, self.onSave, file_menu_save)
         self.main_window.window.Bind(wx.EVT_MENU, self.onSaveAs, file_menu_save_as)
         self.main_window.window.Bind(wx.EVT_MENU, self.onPrint, file_menu_print)
         self.main_window.window.Bind(wx.EVT_MENU, self.onExit, file_menu_exit)
+    #Function that creates a new tab.
+    def onNewTab(self, evt):
+        self.main_window.createTab()
     #Function that creates a new instance of the window.
     def onNewWindow(self, evt):
         new_window = WindowInstance()
@@ -62,28 +92,28 @@ class FileMenu(wx.Menu, MainWindow):
         dlg = wx.FileDialog(self.main_window.window, "Open", wildcard= wildcard, style=style)
         if (dlg.ShowModal() == wx.ID_OK):
             file_path = dlg.GetPath()
-            self.main_window.current_file_path = file_path
+            self.main_window.current_file_paths[self.main_window.notebook.GetSelection()] = file_path
         with open(file_path, 'r') as file:
             contents = file.read()
-            self.main_window.text_control.SetValue(contents)
+            self.main_window.getTextControlFromTab().SetValue(contents)
         dlg.Destroy()
-        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_path) + "- Text Editor")
+        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
     #Function to save the current file; if file exists, will override the contents with the new contents; if the file does not exist, will create and open the save as dialogue box and change the window title to include the file name.
     def onSave(self, evt):
-        if self.main_window.current_file_path:
-            with open(self.main_window.current_file_path, 'w') as file:
-                file.write(self.main_window.text_control.GetValue())
+        if self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]:
+            with open(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()], 'w') as file:
+                file.write(self.main_window.getTextControlFromTab().GetValue())
         else:
             wildcard = "Text documents(*.txt)|*.txt|All files(*.*)|*.*"
             style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
             dlg = wx.FileDialog(self.main_window.window, "Save as", wildcard=wildcard, style=style)
             if (dlg.ShowModal() == wx.ID_OK):
                 file_path = dlg.GetPath()
-                self.main_window.current_file_path = file_path
+                self.main_window.current_file_paths[self.main_window.notebook.GetSelection()] = file_path
             with open(file_path, 'w') as file:
-                file.write(self.main_window.text_control.GetValue())
+                file.write(self.main_window.getTextControlFromTab().GetValue())
             dlg.Destroy()
-            self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_path) + "- Text Editor")
+            self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
     #For the save as function which creates a new file or saves the same file with a new different file name, and changes the window title with the new file name.
     def onSaveAs(self, evt):
         wildcard = "Text documents(*.txt)|*.txt|All files(*.*)|*.*"
@@ -91,56 +121,51 @@ class FileMenu(wx.Menu, MainWindow):
         dlg = wx.FileDialog(self.main_window.window, "Save as", wildcard=wildcard, style=style)
         if (dlg.ShowModal() == wx.ID_OK):
             file_path = dlg.GetPath()
-            self.main_window.current_file_path = file_path
+            self.main_window.current_file_paths[self.main_window.notebook.GetSelection()] = file_path
         with open(file_path, 'w') as file:
-            file.write(self.main_window.text_control.GetValue())
+            file.write(self.main_window.getTextControlFromTab().GetValue())
         dlg.Destroy()
-        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_path) + "- Text Editor")
+        self.main_window.window.SetTitle(os.path.basename(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()]) + "- Text Editor")
     #Function that prints the text using a printer
     def onPrint(self, evt):
         printer = wx.Printer()
         print_dlg = wx.PrintDialog(self.main_window.window)
         if print_dlg.ShowModal() == wx.ID_OK:
             print_data = print_dlg.GetPrintData()
-            printout = TextPrintout(self.main_window.text_control.GetValue())
+            printout = TextPrintout(self.main_window.getTextControlFromTab().GetValue())
             printer.Print(parent=self.main_window.window, printout=printout)
             printout.Destroy()
         print_dlg.Destroy()
     #For the exit menu item of the file menu which closes the window; in addition, the function checks if there have been changes to the file and asks user to save or not saved and also checks if there is text but no file name and will ask user to save or not save.
     def onExit(self, evt):
-        if self.main_window.current_file_path != "":
-            with open(self.main_window.current_file_path, 'r') as file:
+        if self.main_window.current_file_paths[self.main_window.notebook.GetSelection()] != "":
+            with open(self.main_window.current_file_paths[self.main_window.notebook.GetSelection()], 'r') as file:
                 current_contents = file.read()
-            if current_contents != self.main_window.text_control.GetValue():
+            if current_contents != self.main_window.getTextControlFromTab().GetValue():
                 dlg = wx.MessageDialog(parent=self.main_window.window, caption="Save Changes", message="Do you want to save changes to " + os.path.basename(self.current_file_path) + "?", style=wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
                 result = dlg.ShowModal()
                 if result == wx.ID_YES:
                     self.onSave(evt)
                     self.main_window.window.Close(True)
-                    sys.exit()
                 elif result == wx.ID_NO:
                     self.main_window.Close(True)
-                    sys.exit()
                 else:
                     dlg.Destroy()
                     return
         else:
-            if self.main_window.text_control.GetValue():
+            if self.main_window.getTextControlFromTab().GetValue():
                 dlg = wx.MessageDialog(parent=self.main_window.window, caption="Save Changes", message="Do you want to save changes to Untitled?", style=wx.YES_NO | wx.CANCEL | wx.ICON_QUESTION)
                 result = dlg.ShowModal()
                 if result == wx.ID_YES:
                     self.onSave(evt)
                     self.main_window.window.Close(True)
-                    sys.exit()
                 elif result == wx.ID_NO:
                     self.main_window.window.Close(True)
-                    sys.exit()
                 else:
                     dlg.Destroy()
                     return
             else:
                 self.main_window.window.Close(True)
-                sys.exit()
 
 class TextPrintout(wx.Printout):
     def __init__(self, text):
